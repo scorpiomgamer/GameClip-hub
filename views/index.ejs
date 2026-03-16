@@ -1,0 +1,41 @@
+<section class="hero">
+  <div class="hero-content">
+    <h1>Clips épicos, comunidad tranquila</h1>
+    <p>Comparte tus mejores jugadas y momentos destacados sin toxicidad, con comentarios moderados automáticamente.</p>
+    <% if (!currentUser) { %>
+      <div class="hero-actions">
+        <a href="/register" class="btn primary">Crear cuenta</a>
+        <a href="/login" class="btn ghost">Iniciar sesión</a>
+      </div>
+    <% } else { %>
+      <div class="hero-actions">
+        <a href="/clips/new" class="btn primary">Subir nuevo clip</a>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<section class="clips-section">
+  <h2>Últimos clips de la comunidad</h2>
+
+  <% if (!clips || clips.length === 0) { %>
+    <p class="empty-state">Aún no hay clips publicados. ¡Sé el primero en compartir tu jugada!</p>
+  <% } else { %>
+    <div class="clips-grid">
+      <% clips.forEach((clip) => { %>
+        <article class="clip-card">
+          <video class="clip-video" controls src="/uploads/<%= clip.filename %>"></video>
+          <div class="clip-body">
+            <h3><a href="/clips/<%= clip.id %>"><%= clip.title %></a></h3>
+            <p class="clip-meta">
+              Por <span><%= clip.username %></span> ·
+              <span><%= clip.likeCount %> likes</span> ·
+              <span><%= clip.commentCount %> comentarios</span>
+            </p>
+          </div>
+        </article>
+      <% }); %>
+    </div>
+  <% } %>
+</section>
+

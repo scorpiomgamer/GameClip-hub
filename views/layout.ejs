@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GameClip-hub</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <header class="main-header">
+      <div class="logo">GameClip<span>hub</span></div>
+      <nav class="nav">
+        <a href="/">Inicio</a>
+        <% if (currentUser) { %>
+          <a href="/clips/new">Subir clip</a>
+          <% if (currentUser.role === 'admin') { %>
+            <a href="/admin">Panel admin</a>
+          <% } %>
+          <form action="/logout" method="POST" class="inline-form">
+            <button type="submit">Cerrar sesión (<%= currentUser.username %>)</button>
+          </form>
+        <% } else { %>
+          <a href="/login">Iniciar sesión</a>
+          <a href="/register">Registrarse</a>
+        <% } %>
+      </nav>
+    </header>
+
+    <main class="container">
+      <%- body %>
+    </main>
+
+    <footer class="main-footer">
+      <p>&copy; <%= new Date().getFullYear() %> GameClip-hub · Comunidad gamer</p>
+    </footer>
+
+    <script src="/js/main.js"></script>
+  </body>
+</html>
+

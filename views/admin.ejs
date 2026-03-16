@@ -1,0 +1,72 @@
+<section class="admin-section">
+  <h2>Panel de administración</h2>
+
+  <div class="admin-grid">
+    <div>
+      <h3>Clips publicados</h3>
+      <% if (!clips || clips.length === 0) { %>
+        <p class="empty-state">No hay clips registrados.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Título</th>
+              <th>Autor</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% clips.forEach((clip) => { %>
+              <tr>
+                <td><%= clip.id %></td>
+                <td><%= clip.title %></td>
+                <td><%= clip.username %></td>
+                <td>
+                  <form action="/admin/clips/<%= clip.id %>/delete" method="POST" class="inline-form">
+                    <button type="submit" class="btn danger small">Eliminar</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+
+    <div>
+      <h3>Usuarios registrados</h3>
+      <% if (!users || users.length === 0) { %>
+        <p class="empty-state">No hay usuarios registrados.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% users.forEach((user) => { %>
+              <tr>
+                <td><%= user.id %></td>
+                <td><%= user.username %></td>
+                <td><%= user.role %></td>
+                <td>
+                  <% if (user.role !== 'admin') { %>
+                    <form action="/admin/users/<%= user.id %>/delete" method="POST" class="inline-form">
+                      <button type="submit" class="btn danger small">Eliminar</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</section>
+

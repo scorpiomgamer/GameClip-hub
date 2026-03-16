@@ -1,0 +1,22 @@
+<section class="form-section">
+  <h2>Subir nuevo clip</h2>
+
+  <% if (error) { %>
+    <div class="alert error"><%= error %></div>
+  <% } %>
+
+  <form action="/clips" method="POST" enctype="multipart/form-data" class="clip-form">
+    <label>
+      Título del clip
+      <input type="text" name="title" required />
+    </label>
+
+    <label>
+      Archivo de video (mp4, webm, ogg)
+      <input type="file" name="clip" accept="video/mp4,video/webm,video/ogg" required />
+    </label>
+
+    <button type="submit" class="btn primary">Publicar clip</button>
+  </form>
+</section>
+

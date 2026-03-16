@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="clip-detail">
+  <article class="clip-card large">
+    <video class="clip-video" controls src="{{ url_for('uploaded_file', filename=clip['filename']) }}"></video>
+    <div class="clip-body">
+      <h2>{{ clip["title"] }}</h2>
+      <p class="clip-meta">
+        Por <span>{{ clip["username"] }}</span> ·
+        <span>{{ clip["likeCount"] }} likes</span>
+      </p>
+
+      {% if current_user %}
+        <form action="{{ url_for('like_clip', clip_id=clip['id']) }}" method="POST" class="inline-form">
+          <button type="submit" class="btn ghost">Dar like</button>
+        </form>
+      {% else %}
+        <p class="hint">Inicia sesión para dar like y comentar.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+<section class="comments-section">
+  <h3>Comentarios</h3>
+
+  {% if comments|length == 0 %}
+    <p class="empty-state">Todavía no hay comentarios. Sé el primero en opinar.</p>
+  {% else %}
+    <ul class="comments-list">
+      {% for comment in comments %}
+        <li class="comment-item">
+          <p class="comment-meta">
+            <span class="author">{{ comment["username"] }}</span>
+            <span class="date">{{ comment["created_at"] }}</span>
+          </p>
+          <p class="comment-content">{{ comment["content"] }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if current_user %}
+    <form action="{{ url_for('add_comment', clip_id=clip['id']) }}" method="POST" class="comment-form">
+      <label>
+        Añadir comentario
+        <textarea name="content" rows="3" required></textarea>
+      </label>
+      <p class="hint">
+        Los comentarios pasan por un filtro automático de lenguaje ofensivo para mantener un entorno sano.
+      </p>
+      <button type="submit" class="btn primary">Publicar comentario</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}
+

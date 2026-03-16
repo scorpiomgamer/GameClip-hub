@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="auth-section">
+  <h2>Iniciar sesión</h2>
+
+  <form action="{{ url_for('login') }}" method="POST" class="auth-form">
+    <label>
+      Usuario
+      <input type="text" name="username" required />
+    </label>
+
+    <label>
+      Contraseña
+      <input type="password" name="password" required />
+    </label>
+
+    <button type="submit" class="btn primary">Entrar</button>
+
+    <p class="auth-alt">
+      ¿No tienes cuenta?
+      <a href="{{ url_for('register') }}">Regístrate aquí</a>
+    </p>
+  </form>
+</section>
+{% endblock %}
+
