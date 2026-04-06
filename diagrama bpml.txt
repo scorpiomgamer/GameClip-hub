@@ -1,0 +1,82 @@
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   GAMECLIP-HUB — BPMN                                        │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+
+POOL: GameClip-hub
+├─ LANE: Usuario (Visitante / Usuario autenticado)
+│
+│  (Start) Acceder a la plataforma
+│        |
+│        v
+│   [Task] Ver feed de clips (Inicio)
+│        |
+│        v
+│   <Gateway XOR> ¿Está autenticado?
+│      | Sí                                   | No
+│      v                                      v
+│  [Task] Navegar / ver detalle de clip   [Task] Ir a Login/Registro
+│      |                                      |
+│      |                                      v
+│      |                                 <Gateway XOR> ¿Login o Registro?
+│      |                                  | Login               | Registro
+│      |                                  v                     v
+│      |                             [Task] Enviar credenciales  [Task] Crear cuenta
+│      |                                  |                     |
+│      |                                  v                     v
+│      |                             <Gateway XOR> ¿Credenciales válidas?
+│      |                              | Sí                 | No
+│      |                              v                    v
+│      |                         [Task] Crear sesión     [Task] Mostrar error
+│      |                              |
+│      |                              v
+│      |                         [Task] Volver a Inicio
+│      |
+│      v
+│   <Gateway XOR> ¿Qué desea hacer?
+│     | Subir clip                    | Dar like / Comentar                 | Cerrar sesión
+│     v                               v                                     v
+│ [Task] Ir a "Subir clip"       [Task] Abrir detalle /clips/{id}       [Task] Logout
+│     |                               |                                     |
+│     v                               v                                     v
+│ [Task] Seleccionar video + título  <Gateway XOR> ¿Like o Comentario?   (End) Sesión cerrada
+│     |                               | Like                 | Comentario
+│     v                               v                      v
+│ [Task] Enviar formulario        [Task] Enviar like       [Task] Escribir comentario
+│     |                               |                      |
+│     v                               v                      v
+│ [Task] Ver publicación en feed   [Task] Ver contador       [Task] Enviar comentario
+│     |                               |                      |
+│     v                               v                      v
+│   (End) Clip publicado         (End) Like registrado   (End) Comentario publicado
+│
+├─ LANE: Sistema (Backend Flask + SQLite)
+│
+│  [Task] Consultar BD: clips + conteos (likes/comentarios)
+│  [Task] Validar login (hash password) / crear sesión
+│  [Task] Registrar usuario (hash password)
+│  [Task] Validar archivo de video y guardar en /uploads
+│  [Task] Insertar clip en BD
+│  [Task] Insert OR IGNORE like en BD (evita duplicados)
+│  [Task] Filtrar comentario (badwords.json → reemplazo "****")
+│  [Task] Insertar comentario filtrado en BD
+│
+└─ LANE: Administrador
+   (Start) Acceder /admin
+        |
+        v
+   <Gateway XOR> ¿Es admin autenticado?
+      | Sí                          | No
+      v                             v
+ [Task] Ver panel admin         [Task] Responder 403
+      |
+      v
+ <Gateway XOR> ¿Gestionar qué?
+   | Usuarios                     | Clips
+   v                              v
+ [Task] Listar usuarios           [Task] Listar clips
+   |                              |
+   v                              v
+ [Task] Eliminar usuario          [Task] Eliminar clip (+ borrar archivo)
+   |                              |
+   v                              v
+ (End) Usuario eliminado          (End) Clip eliminado

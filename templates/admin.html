@@ -61,6 +61,10 @@
                     <form action="{{ url_for('admin_delete_user', user_id=user['id']) }}" method="POST" class="inline-form">
                       <button type="submit" class="btn danger small">Eliminar</button>
                     </form>
+                    <form action="{{ url_for('admin_edit_user', user_id=user['id']) }}" method="GET" class="inline-form">
+                      <button type="submit" class="btn primary small">Editar</button>
+                    </form>
+                      
                   {% endif %}
                 </td>
               </tr>

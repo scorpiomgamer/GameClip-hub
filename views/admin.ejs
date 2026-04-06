@@ -59,6 +59,9 @@
                     <form action="/admin/users/<%= user.id %>/delete" method="POST" class="inline-form">
                       <button type="submit" class="btn danger small">Eliminar</button>
                     </form>
+                    <form action="/admin/users/<%= user.id %>/edit" method="GET" class="inline-form">
+                      <button type="submit" class="btn primary small">Editar</button>
+                    </form>
                   <% } %>
                 </td>
               </tr>

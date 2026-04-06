@@ -246,6 +246,61 @@ def create_app() -> Flask:
         db.execute("DELETE FROM users WHERE id = ?", (user_id,))
         db.commit()
         return redirect(url_for("admin_panel"))
+    
+    @app.route("/admin/users/<int:user_id>/edit", methods=["GET", "POST"])
+    def admin_edit_user(user_id: int):
+        require_admin()
+        db = get_db()
+        user = db.execute("SELECT id, username, role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            flash("Usuario no encontrado.", "error")
+            return redirect(url_for("admin_panel"))
+        if user_id == g.current_user["id"]:
+            flash("No puedes editar tu propio usuario de administrador.", "error")
+            return redirect(url_for("admin_panel"))
+        if user["role"] == "admin":
+            flash("No puedes editar otro administrador.", "error")
+            return redirect(url_for("admin_panel"))
+
+        if request.method == "GET":
+            return render_template("edit_user.html", user=user)
+
+        new_username = request.form.get("username", "").strip()
+        new_role = request.form.get("role", "").strip()
+        if not new_username:
+            flash("El nombre de usuario es obligatorio.", "error")
+            return render_template("edit_user.html", user=user), 400
+        if new_role not in {"user", "admin"}:
+            flash("Rol inválido.", "error")
+            return render_template("edit_user.html", user=user), 400
+
+        try:
+            db.execute(
+                "UPDATE users SET username = ?, role = ? WHERE id = ?",
+                (new_username, new_role, user_id),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            flash("El nombre de usuario ya existe.", "error")
+            return render_template("edit_user.html", user=user), 409
+
+        flash("Usuario actualizado exitosamente.", "success")
+        return redirect(url_for("admin_panel"))
+    
+    
+    def admin_edit_admin(user_id: int):
+        require_admin()
+        if user_id == g.current_user["id"]:
+            flash("no puedes editar tu propio usuario de administrador.", 
+                  "error")
+        db=get_db()
+        user = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user and user["role"] == "admin":
+            flash("No puedes editar otro administrador.", "error")
+            return redirect(url_for("admin_panel"))
+        db.execute("UPDATE FROM users WHERE id = ?", (user_id,))
+        db.commit()
+        return redirect(url_for("admin_panel"))        
 
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename: str):
