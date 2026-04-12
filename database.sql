@@ -1,3 +1,6 @@
+-- GameClip-hub: definición completa de la base de datos (SQLite)
+-- Ejecutar con PRAGMA foreign_keys activado en la conexión.
+
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -36,4 +39,3 @@ CREATE TABLE IF NOT EXISTS likes (
   FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-

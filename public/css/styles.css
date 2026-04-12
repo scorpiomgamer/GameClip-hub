@@ -326,6 +326,7 @@ label {
 input[type='text'],
 input[type='password'],
 input[type='file'],
+select,
 textarea {
   padding: 0.6rem 0.7rem;
   border-radius: 0.6rem;
@@ -336,6 +337,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   outline: none;
   border-color: rgba(56, 189, 248, 0.7);

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const expressLayouts = require('express-ejs-layouts');
@@ -11,55 +12,18 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuración de base de datos SQLite
-const db = new sqlite3.Database(path.join(__dirname, 'gamecliphub.db'));
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('user', 'admin'))
-    )
-  `);
+// Base de datos SQLite: DDL en database.sql (única fuente de verdad)
+const DB_PATH = path.join(__dirname, 'gamecliphub.db');
+const SQL_PATH = path.join(__dirname, 'database.sql');
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS clips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      filename TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-  `);
+const db = new sqlite3.Database(DB_PATH);
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS comments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      clip_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      content TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (clip_id) REFERENCES clips(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS likes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      clip_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (clip_id, user_id),
-      FOREIGN KEY (clip_id) REFERENCES clips(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-  `);
-
-  // Usuario administrador por defecto
+function ensureDefaultAdmin() {
   const adminUsername = process.env.ADMIN_USER || 'admin';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
@@ -86,6 +50,25 @@ db.serialize(() => {
         console.error('Error generando hash de admin:', hashErr);
       }
     }
+  });
+}
+
+let initSql;
+try {
+  initSql = fs.readFileSync(SQL_PATH, 'utf8');
+} catch (readErr) {
+  console.error('No se pudo leer database.sql:', readErr);
+  process.exit(1);
+}
+
+db.serialize(() => {
+  db.run('PRAGMA foreign_keys = ON');
+  db.exec(initSql, (execErr) => {
+    if (execErr) {
+      console.error('Error ejecutando database.sql:', execErr);
+      process.exit(1);
+    }
+    ensureDefaultAdmin();
   });
 });
 
@@ -375,23 +358,157 @@ app.get('/admin', requireAdmin, (req, res) => {
   );
 });
 
+app.get('/admin/users/:id/edit', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (Number.isNaN(userId)) {
+    return res.status(404).send('Usuario no encontrado.');
+  }
+  db.get('SELECT id, username, role FROM users WHERE id = ?', [userId], (err, user) => {
+    if (err) {
+      console.error('Error cargando usuario:', err);
+      return res.status(500).send('Error interno.');
+    }
+    if (!user) {
+      return res.status(404).send('Usuario no encontrado.');
+    }
+    if (user.role === 'admin') {
+      return res.status(403).send('No puedes editar cuentas de administrador desde aquí.');
+    }
+    res.render('admin-edit-user', { user, error: null });
+  });
+});
+
+app.post('/admin/users/:id', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (Number.isNaN(userId)) {
+    return res.status(404).send('Usuario no encontrado.');
+  }
+  const username = (req.body.username || '').trim();
+  const role = req.body.role === 'admin' ? 'admin' : 'user';
+  const password = (req.body.password || '').trim();
+
+  const renderError = (userRow, message) => {
+    res.render('admin-edit-user', { user: userRow, error: message });
+  };
+
+  if (!username) {
+    return db.get('SELECT id, username, role FROM users WHERE id = ?', [userId], (e, user) => {
+      if (e || !user) {
+        return res.status(404).send('Usuario no encontrado.');
+      }
+      if (user.role === 'admin') {
+        return res.status(403).send('No puedes editar cuentas de administrador desde aquí.');
+      }
+      renderError(user, 'El nombre de usuario es obligatorio.');
+    });
+  }
+
+  db.get('SELECT id, username, role FROM users WHERE id = ?', [userId], (err, target) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error interno.');
+    }
+    if (!target) {
+      return res.status(404).send('Usuario no encontrado.');
+    }
+    if (target.role === 'admin') {
+      return res.status(403).send('No puedes editar cuentas de administrador desde aquí.');
+    }
+
+    db.get(
+      'SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?',
+      [username, userId],
+      (dupErr, dup) => {
+        if (dupErr) {
+          console.error(dupErr);
+          return res.status(500).send('Error interno.');
+        }
+        if (dup) {
+          return renderError({ ...target, username, role }, 'Ese nombre de usuario ya está en uso.');
+        }
+
+        const afterUpdate = (updateErr) => {
+          if (updateErr) {
+            console.error(updateErr);
+            return renderError({ ...target, username, role }, 'No se pudo guardar. Intenta de nuevo.');
+          }
+          if (req.session.user.id === userId) {
+            req.session.user.username = username;
+            req.session.user.role = role;
+          }
+          res.redirect('/admin');
+        };
+
+        if (password.length > 0) {
+          bcrypt
+            .hash(password, 10)
+            .then((hash) => {
+              db.run(
+                'UPDATE users SET username = ?, role = ?, password_hash = ? WHERE id = ?',
+                [username, role, hash, userId],
+                afterUpdate
+              );
+            })
+            .catch((hErr) => {
+              console.error(hErr);
+              renderError({ ...target, username, role }, 'Error al cifrar la contraseña.');
+            });
+        } else {
+          db.run('UPDATE users SET username = ?, role = ? WHERE id = ?', [username, role, userId], afterUpdate);
+        }
+      }
+    );
+  });
+});
+
 app.post('/admin/clips/:id/delete', requireAdmin, (req, res) => {
   const clipId = req.params.id;
-  db.run('DELETE FROM clips WHERE id = ?', [clipId], (err) => {
+  db.get('SELECT filename FROM clips WHERE id = ?', [clipId], (err, row) => {
     if (err) {
-      console.error('Error eliminando clip:', err);
+      console.error('Error buscando clip:', err);
+      return res.redirect('/admin');
     }
-    res.redirect('/admin');
+    if (!row) {
+      return res.redirect('/admin');
+    }
+    const filePath = path.join(__dirname, 'uploads', row.filename);
+    db.run('DELETE FROM clips WHERE id = ?', [clipId], (delErr) => {
+      if (delErr) {
+        console.error('Error eliminando clip:', delErr);
+      } else {
+        fs.unlink(filePath, (unlinkErr) => {
+          if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+            console.error('Error borrando archivo del clip:', unlinkErr);
+          }
+        });
+      }
+      res.redirect('/admin');
+    });
   });
 });
 
 app.post('/admin/users/:id/delete', requireAdmin, (req, res) => {
-  const userId = req.params.id;
-  db.run('DELETE FROM users WHERE id = ?', [userId], (err) => {
+  const userId = parseInt(req.params.id, 10);
+  if (Number.isNaN(userId)) {
+    return res.redirect('/admin');
+  }
+  if (userId === req.session.user.id) {
+    return res.redirect('/admin');
+  }
+  db.get('SELECT role FROM users WHERE id = ?', [userId], (err, row) => {
     if (err) {
-      console.error('Error eliminando usuario:', err);
+      console.error('Error comprobando usuario:', err);
+      return res.redirect('/admin');
     }
-    res.redirect('/admin');
+    if (!row || row.role === 'admin') {
+      return res.redirect('/admin');
+    }
+    db.run('DELETE FROM users WHERE id = ?', [userId], (delErr) => {
+      if (delErr) {
+        console.error('Error eliminando usuario:', delErr);
+      }
+      res.redirect('/admin');
+    });
   });
 });
 

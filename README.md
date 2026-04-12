@@ -34,7 +34,7 @@ GameClip-hub/
 ├─ app.py                 # Punto de entrada del servidor Flask
 ├─ gamecliphub.db        # Base de datos SQLite (se crea en tiempo de ejecución)
 ├─ .env                  # Configuración sensible (no subir en repositorios públicos)
-├─ schema.sql            # Esquema SQL (DDL) de la base de datos
+├─ database.sql          # DDL completo de la base de datos (SQLite)
 ├─ badwords.json         # Lista configurable de palabras prohibidas (JSON)
 ├─ templates/            # Plantillas HTML (Jinja2)
 │  ├─ base.html
@@ -84,7 +84,7 @@ La aplicación utiliza una base de datos SQLite con el siguiente modelo relacion
   - `created_at` (DATETIME, default CURRENT_TIMESTAMP)
   - Índice único `(clip_id, user_id)` para evitar likes duplicados del mismo usuario.
 
-La creación de tablas se realiza automáticamente al arrancar el servidor usando el script `schema.sql` (ejecutado desde `app.py`).
+La creación de tablas se realiza automáticamente al arrancar el servidor usando el script `database.sql` (por ejemplo desde `server.js` con Node o `app.py` con Flask).
 
 ## Filtro de comentarios (lenguaje ofensivo)
 

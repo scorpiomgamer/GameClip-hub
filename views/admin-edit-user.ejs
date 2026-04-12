@@ -1,0 +1,29 @@
+<section class="auth-section">
+  <h2>Editar usuario</h2>
+
+  <% if (error) { %>
+    <div class="alert error"><%= error %></div>
+  <% } %>
+
+  <form method="POST" action="/admin/users/<%= user.id %>" class="auth-form">
+    <label>
+      Nombre de usuario
+      <input type="text" name="username" value="<%= user.username %>" required maxlength="80" autocomplete="username" />
+    </label>
+    <label>
+      Rol
+      <select name="role">
+        <option value="user" <%= user.role === 'user' ? 'selected' : '' %>>Usuario</option>
+        <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>Administrador</option>
+      </select>
+    </label>
+    <label>
+      Nueva contraseña (opcional)
+      <input type="password" name="password" autocomplete="new-password" placeholder="Dejar vacío para no cambiar" />
+    </label>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-top:0.2rem;">
+      <button type="submit" class="btn primary">Guardar cambios</button>
+      <a href="/admin" class="btn ghost">Cancelar</a>
+    </div>
+  </form>
+</section>

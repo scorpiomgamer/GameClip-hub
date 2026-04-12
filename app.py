@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "gamecliphub.db"
 UPLOAD_DIR = BASE_DIR / "uploads"
 BADWORDS_PATH = BASE_DIR / "badwords.json"
-SCHEMA_PATH = BASE_DIR / "schema.sql"
+SCHEMA_PATH = BASE_DIR / "database.sql"
 
 
 def create_app() -> Flask:
