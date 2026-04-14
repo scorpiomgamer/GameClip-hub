@@ -97,16 +97,25 @@ const upload = multer({
   }
 });
 
-// Lista simple de palabras prohibidas (es/en)
-const bannedWords = [
-  'tonto', 'idiota', 'estupido', 'estúpido',
-  'fuck', 'shit', 'bitch', 'asshole', 'bastard'
-];
+const BADWORDS_PATH = path.join(__dirname, 'badwords.json');
+
+function loadBannedWords() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(BADWORDS_PATH, 'utf8'));
+    const list = raw.banned_words || [];
+    return list.filter((w) => typeof w === 'string' && w.trim());
+  } catch {
+    return ['tonto', 'idiota', 'fuck', 'shit'];
+  }
+}
+
+const bannedWords = loadBannedWords();
 
 function sanitizeComment(content) {
   let sanitized = content;
   for (const word of bannedWords) {
-    const regex = new RegExp(word, 'gi');
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'gi');
     sanitized = sanitized.replace(regex, '****');
   }
   return sanitized;
@@ -161,7 +170,7 @@ app.get('/', (req, res) => {
            (SELECT COUNT(*) FROM comments WHERE comments.clip_id = clips.id) AS commentCount
     FROM clips
     JOIN users ON users.id = clips.user_id
-    ORDER BY created_at DESC
+    ORDER BY clips.created_at DESC
     `,
     [],
     (err, clips) => {

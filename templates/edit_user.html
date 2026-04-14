@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="form-section">
+  <h2>Editar usuario</h2>
+
+  <form method="POST" action="{{ url_for('admin_edit_user', user_id=user['id']) }}" class="clip-form">
+    <label>
+      Nombre de usuario
+      <input type="text" name="username" value="{{ user['username'] }}" required maxlength="80" autocomplete="username" />
+    </label>
+    <label>
+      Rol
+      <select name="role">
+        <option value="user" {% if user['role'] == 'user' %}selected{% endif %}>Usuario</option>
+        <option value="admin" {% if user['role'] == 'admin' %}selected{% endif %}>Administrador</option>
+      </select>
+    </label>
+    <label>
+      Nueva contraseña (opcional)
+      <input type="password" name="password" autocomplete="new-password" placeholder="Dejar vacío para no cambiar" />
+    </label>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
+      <button type="submit" class="btn primary">Guardar cambios</button>
+      <a href="{{ url_for('admin_panel') }}" class="btn ghost">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,20 @@
+# Entorno y secretos
+.env
+.env.local
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Base de datos y subidas (generados en ejecución)
+gamecliphub.db
+gamecliphub.db-journal
+uploads/*
+!uploads/.gitkeep
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/

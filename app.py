@@ -18,7 +18,8 @@ from flask import (
     session,
     url_for,
 )
-from werkzeug.security import check_password_hash, generate_password_hash
+import bcrypt
+from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
 
@@ -27,6 +28,32 @@ DB_PATH = BASE_DIR / "gamecliphub.db"
 UPLOAD_DIR = BASE_DIR / "uploads"
 BADWORDS_PATH = BASE_DIR / "badwords.json"
 SCHEMA_PATH = BASE_DIR / "database.sql"
+
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=10)).decode("utf-8")
+
+
+def verify_login_password(user_row: sqlite3.Row, password: str) -> tuple[bool, bool]:
+    """Devuelve (contraseña_correcta, requiere_migración_a_bcrypt)."""
+    ph = user_row["password_hash"]
+    if not ph:
+        return (False, False)
+    ph = str(ph)
+    if ph.startswith("$2"):
+        try:
+            return (
+                bcrypt.checkpw(password.encode("utf-8"), ph.encode("utf-8")),
+                False,
+            )
+        except ValueError:
+            return (False, False)
+    try:
+        if check_password_hash(ph, password):
+            return (True, True)
+    except Exception:
+        pass
+    return (False, False)
 
 
 def create_app() -> Flask:
@@ -77,9 +104,17 @@ def create_app() -> Flask:
         password = request.form.get("password", "")
         db = get_db()
         user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        if not user or not check_password_hash(user["password_hash"], password):
+        ok, needs_rehash = verify_login_password(user, password) if user else (False, False)
+        if not user or not ok:
             flash("Usuario o contraseña inválidos.", "error")
             return render_template("login.html"), 401
+
+        if needs_rehash:
+            db.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password(password), user["id"]),
+            )
+            db.commit()
 
         session["user"] = {"id": user["id"], "username": user["username"], "role": user["role"]}
         return redirect(url_for("index"))
@@ -99,7 +134,7 @@ def create_app() -> Flask:
         try:
             db.execute(
                 "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                (username, generate_password_hash(password), "user"),
+                (username, hash_password(password), "user"),
             )
             db.commit()
         except sqlite3.IntegrityError:
@@ -115,12 +150,16 @@ def create_app() -> Flask:
 
     @app.route("/clips/new")
     def new_clip():
-        require_auth()
+        denied = require_auth()
+        if denied is not None:
+            return denied
         return render_template("new_clip.html")
 
     @app.post("/clips")
     def create_clip():
-        require_auth()
+        denied = require_auth()
+        if denied is not None:
+            return denied
         title = request.form.get("title", "").strip()
         file = request.files.get("clip")
         if not title:
@@ -180,7 +219,9 @@ def create_app() -> Flask:
 
     @app.post("/clips/<int:clip_id>/like")
     def like_clip(clip_id: int):
-        require_auth()
+        denied = require_auth()
+        if denied is not None:
+            return denied
         db = get_db()
         db.execute(
             "INSERT OR IGNORE INTO likes (clip_id, user_id) VALUES (?, ?)",
@@ -191,7 +232,9 @@ def create_app() -> Flask:
 
     @app.post("/clips/<int:clip_id>/comments")
     def add_comment(clip_id: int):
-        require_auth()
+        denied = require_auth()
+        if denied is not None:
+            return denied
         raw = request.form.get("content", "")
         sanitized = sanitize_comment(raw)
         db = get_db()
@@ -204,7 +247,9 @@ def create_app() -> Flask:
 
     @app.route("/admin")
     def admin_panel():
-        require_admin()
+        denied = require_admin()
+        if denied is not None:
+            return denied
         db = get_db()
         clips = db.execute(
             """
@@ -220,7 +265,9 @@ def create_app() -> Flask:
 
     @app.post("/admin/clips/<int:clip_id>/delete")
     def admin_delete_clip(clip_id: int):
-        require_admin()
+        denied = require_admin()
+        if denied is not None:
+            return denied
         db = get_db()
         clip = db.execute("SELECT filename FROM clips WHERE id = ?", (clip_id,)).fetchone()
         if clip:
@@ -234,7 +281,9 @@ def create_app() -> Flask:
 
     @app.post("/admin/users/<int:user_id>/delete")
     def admin_delete_user(user_id: int):
-        require_admin()
+        denied = require_admin()
+        if denied is not None:
+            return denied
         if user_id == g.current_user["id"]:
             flash("No puedes eliminar tu propio usuario administrador.", "error")
             return redirect(url_for("admin_panel"))
@@ -249,7 +298,9 @@ def create_app() -> Flask:
     
     @app.route("/admin/users/<int:user_id>/edit", methods=["GET", "POST"])
     def admin_edit_user(user_id: int):
-        require_admin()
+        denied = require_admin()
+        if denied is not None:
+            return denied
         db = get_db()
         user = db.execute("SELECT id, username, role FROM users WHERE id = ?", (user_id,)).fetchone()
         if not user:
@@ -267,6 +318,7 @@ def create_app() -> Flask:
 
         new_username = request.form.get("username", "").strip()
         new_role = request.form.get("role", "").strip()
+        new_password = request.form.get("password", "").strip()
         if not new_username:
             flash("El nombre de usuario es obligatorio.", "error")
             return render_template("edit_user.html", user=user), 400
@@ -275,10 +327,16 @@ def create_app() -> Flask:
             return render_template("edit_user.html", user=user), 400
 
         try:
-            db.execute(
-                "UPDATE users SET username = ?, role = ? WHERE id = ?",
-                (new_username, new_role, user_id),
-            )
+            if new_password:
+                db.execute(
+                    "UPDATE users SET username = ?, role = ?, password_hash = ? WHERE id = ?",
+                    (new_username, new_role, hash_password(new_password), user_id),
+                )
+            else:
+                db.execute(
+                    "UPDATE users SET username = ?, role = ? WHERE id = ?",
+                    (new_username, new_role, user_id),
+                )
             db.commit()
         except sqlite3.IntegrityError:
             flash("El nombre de usuario ya existe.", "error")
@@ -286,21 +344,6 @@ def create_app() -> Flask:
 
         flash("Usuario actualizado exitosamente.", "success")
         return redirect(url_for("admin_panel"))
-    
-    
-    def admin_edit_admin(user_id: int):
-        require_admin()
-        if user_id == g.current_user["id"]:
-            flash("no puedes editar tu propio usuario de administrador.", 
-                  "error")
-        db=get_db()
-        user = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
-        if user and user["role"] == "admin":
-            flash("No puedes editar otro administrador.", "error")
-            return redirect(url_for("admin_panel"))
-        db.execute("UPDATE FROM users WHERE id = ?", (user_id,))
-        db.commit()
-        return redirect(url_for("admin_panel"))        
 
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename: str):
@@ -318,6 +361,12 @@ def get_db() -> sqlite3.Connection:
     return g.db
 
 
+def migrate_schema(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if cols and "created_at" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+
+
 def init_db() -> None:
     DB_PATH.touch(exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -325,6 +374,7 @@ def init_db() -> None:
     conn.execute("PRAGMA foreign_keys = ON;")
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema)
+    migrate_schema(conn)
     conn.commit()
     conn.close()
 
@@ -332,27 +382,39 @@ def init_db() -> None:
 def ensure_default_admin() -> None:
     admin_user = os.getenv("ADMIN_USER", "admin")
     admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+    reset = os.getenv("RESET_ADMIN_PASSWORD", "").lower() in ("1", "true", "yes")
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    existing = conn.execute("SELECT id FROM users WHERE username = ?", (admin_user,)).fetchone()
-    if not existing:
+    row = conn.execute("SELECT id FROM users WHERE username = ?", (admin_user,)).fetchone()
+    ph = hash_password(admin_password)
+    if not row:
         conn.execute(
             "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-            (admin_user, generate_password_hash(admin_password), "admin"),
+            (admin_user, ph, "admin"),
+        )
+        conn.commit()
+    elif reset:
+        conn.execute(
+            "UPDATE users SET password_hash = ?, role = 'admin' WHERE username = ?",
+            (ph, admin_user),
         )
         conn.commit()
     conn.close()
 
 
-def require_auth() -> None:
+def require_auth():
     if not session.get("user"):
-        abort(401)
+        flash("Debes iniciar sesión para continuar.", "error")
+        return redirect(url_for("login"))
+    return None
 
 
-def require_admin() -> None:
+def require_admin():
     u = session.get("user")
     if not u or u.get("role") != "admin":
-        abort(403)
+        flash("Acceso restringido a administradores.", "error")
+        return redirect(url_for("index"))
+    return None
 
 
 def load_badwords() -> list[str]:
